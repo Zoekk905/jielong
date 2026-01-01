@@ -34,15 +34,14 @@ h1{
   background:#fff;
   border:1px solid #ddd;
   border-radius:8px;
-  padding:16px;          /* ⭐统一内边距 */
+  padding:16px;
   margin-bottom:14px;
 }
 
 textarea{
   width:100%;
   min-height:220px;
-  box-sizing:border-box; /* ⭐关键 */
-  padding:12px 14px;    /* ⭐左右/上下平衡 */
+  padding:12px 14px;
   border-radius:6px;
   border:1px solid #ccc;
   font-size:14px;
@@ -51,9 +50,10 @@ textarea{
   background:#fff;
   outline:none;
 }
+textarea:focus{ border-color:#4c8bf5; }
 
-textarea:focus{
-  border-color:#4c8bf5;
+textarea.small{
+  min-height:120px;
 }
 
 .row{
@@ -105,6 +105,7 @@ input[type="number"]{
   border:1px solid #ddd;
   border-radius:8px;
   background:#fff;
+  overflow:hidden;
 }
 
 .ghead{
@@ -113,8 +114,30 @@ input[type="number"]{
   padding:8px 10px;
   display:flex;
   justify-content:space-between;
+  align-items:center;
   font-size:13px;
+  gap:10px;
 }
+
+.ghead .left{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+}
+.badge{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:3px 8px;
+  border-radius:999px;
+  border:1px solid #d0d0d0;
+  background:#fff;
+  font-size:12px;
+  color:#333;
+  white-space:nowrap;
+}
+.badge b{ font-weight:700; }
 
 table{
   width:100%;
@@ -145,6 +168,14 @@ td.seq,th.seq{
 
 .ok{color:#2e8b57;}
 .warn{color:#c0392b;}
+
+.note{
+  font-size:13px;
+  color:#666;
+  margin-top:10px;
+  line-height:1.5;
+}
+.note .warn{font-weight:700;}
 </style>
 </head>
 
@@ -152,10 +183,11 @@ td.seq,th.seq{
 <div class="wrap">
   <h1>微信接龙自动分组</h1>
   <div class="sub">
-    粘贴接龙 → 自动解析 → 只显示分组结果（不拆分任何人金额）
+    粘贴接龙 → 自动解析 → 先按顺序分组（不拆分任何人金额）→ 再按组长ID分配给“组里没有该组长ID”的组
   </div>
 
   <div class="card">
+    <div style="font-weight:700;margin-bottom:8px;">① 粘贴接龙</div>
     <textarea id="raw" placeholder="1. 张三 100
 2. 李四 20
 3. 王五 50"></textarea>
@@ -174,6 +206,19 @@ td.seq,th.seq{
       <button onclick="run()">分组</button>
       <button class="secondary" onclick="clearAll()">清空</button>
     </div>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:700;margin-bottom:8px;">② 组长ID列表（每行一个 / 可用逗号分隔也行）</div>
+    <textarea id="leaders" class="small" placeholder="例如：
+张三
+王五
+ELEVEN-EVENTS"></textarea>
+    <div class="note">
+      分配规则：分完组后，按组长输入顺序依次分配到<strong>第一个</strong>“组里不包含该组长ID”的组（且该组尚未分配组长）。
+      若找不到符合的组，会提示你哪些组长未成功分配。
+    </div>
+    <div id="assignNote" class="note" style="display:none;"></div>
   </div>
 
   <div class="card">
@@ -196,18 +241,35 @@ function parseItems(text){
     let m=l.match(/^(\d+)\.\s*/);
     let no=m?parseInt(m[1]):seq;
     if(m) l=l.replace(/^(\d+)\.\s*/,"");
+
+    // 取最后一个数字为金额
     let a=l.match(/(\d+)(?!.*\d)/);
     if(!a) continue;
-    let amount=parseInt(a[1]);
+
+    let amount=parseInt(a[1],10);
+    if(!Number.isFinite(amount) || amount<=0) continue;
+
     let id=l.replace(a[1],"").trim();
+    id=id.replace(/[：:，,。.]$/g,"").trim();
+    if(!id) continue;
+
     items.push({no,id,amount});
     seq=no+1;
   }
   return items;
 }
 
+function parseLeaders(text){
+  // 支持：换行 / 逗号 / 顿号 / 分号
+  return text
+    .replace(/\r/g,"")
+    .split(/[\n,，;；、]+/g)
+    .map(s=>s.trim())
+    .filter(Boolean);
+}
+
 function findCombo(arr,need,k,start=0,path=[]){
-  if(need===0&&path.length===k) return path;
+  if(need===0 && path.length===k) return path;
   if(path.length>=k) return null;
   for(let i=start;i<arr.length;i++){
     if(arr[i].amount<=need){
@@ -218,6 +280,45 @@ function findCombo(arr,need,k,start=0,path=[]){
   return null;
 }
 
+/**
+ * 分配组长：按输入顺序，找“未分配组长的组”里第一个不含该组长ID的组
+ * 注意：这里是“包含”判定 => 采用严格相等匹配（组员ID 去空格后与组长ID 去空格后相等）
+ */
+function assignLeaders(groups, leaderList){
+  const norm = s => String(s).trim();
+
+  // 预建每组的成员ID集合（用于快速判断）
+  groups.forEach(g=>{
+    g.leader = null;
+    g.memberSet = new Set(g.items.map(it=>norm(it.id)));
+  });
+
+  const unassigned = [];
+  for(const leader of leaderList){
+    const L = norm(leader);
+    let picked = -1;
+
+    for(let i=0;i<groups.length;i++){
+      const g = groups[i];
+      if(g.leader) continue; // 这组已有组长
+      if(g.memberSet.has(L)) continue; // 这组里有该组长的接龙，跳过
+      picked = i;
+      break;
+    }
+
+    if(picked>=0){
+      groups[picked].leader = L;
+    }else{
+      unassigned.push(L);
+    }
+  }
+
+  // 清理临时字段
+  groups.forEach(g=>{ delete g.memberSet; });
+
+  return { groups, unassigned };
+}
+
 function run(){
   const raw=document.getElementById("raw").value;
   let arr=parseItems(raw);
@@ -225,13 +326,20 @@ function run(){
   const maxK=+document.getElementById("maxK").value;
   const showSeq=document.getElementById("showSeq").checked;
 
+  const leadersText = document.getElementById("leaders").value;
+  const leaderList = parseLeaders(leadersText);
+
   const groups=[];
   while(arr.length){
     let g=[],sum=0;
+
+    // ① 按顺序装入能装下的
     while(arr.length && sum+arr[0].amount<=target){
       g.push(arr.shift());
       sum+=g[g.length-1].amount;
     }
+
+    // ② 不足则从后面找组合补齐（不拆分任何人金额）
     if(sum<target){
       let need=target-sum;
       for(let k=1;k<=maxK;k++){
@@ -243,19 +351,45 @@ function run(){
         }
       }
     }
+
     groups.push({sum,items:g});
   }
 
-  render(groups,showSeq,target);
+  // ③ 分完组后：按组长列表分配到不包含组长的组（优先靠前）
+  const { groups: assignedGroups, unassigned } = assignLeaders(groups, leaderList);
+
+  render(assignedGroups, showSeq, target, leaderList, unassigned);
 }
 
-function render(groups,showSeq,target){
+function render(groups, showSeq, target, leaderList, unassigned){
+  // 提示信息
+  const note = document.getElementById("assignNote");
+  if(leaderList.length){
+    note.style.display="block";
+    if(unassigned.length){
+      note.innerHTML = `<span class="warn">有 ${unassigned.length} 个组长未成功分配：</span>${unassigned.join("、")}
+        <br>原因：剩余可分配的组，要么已分配组长，要么包含该组长的接龙。`;
+    }else{
+      note.innerHTML = `<span class="ok">组长分配完成：</span>共 ${leaderList.length} 位组长，已全部分配到不含本人接龙的组。`;
+    }
+  }else{
+    note.style.display="none";
+    note.innerHTML="";
+  }
+
   let html='<div class="groups">';
   groups.forEach((g,i)=>{
+    const leaderBadge = g.leader
+      ? `<span class="badge">组长：<b>${escapeHtml(g.leader)}</b></span>`
+      : (leaderList.length ? `<span class="badge" style="opacity:.75;">未分配组长</span>` : ``);
+
     html+=`
     <div class="gcard">
       <div class="ghead">
-        <strong>第 ${i+1} 组</strong>
+        <div class="left">
+          <strong>第 ${i+1} 组</strong>
+          ${leaderBadge}
+        </div>
         <span class="${g.sum===target?'ok':'warn'}">合计 ${g.sum}</span>
       </div>
       <table>
@@ -263,7 +397,7 @@ function render(groups,showSeq,target){
         ${g.items.map(it=>`
           <tr>
             ${showSeq?`<td class="seq">${it.no}</td>`:''}
-            <td>${it.id}</td>
+            <td>${escapeHtml(it.id)}</td>
             <td class="num">${it.amount}</td>
           </tr>`).join("")}
       </table>
@@ -273,9 +407,22 @@ function render(groups,showSeq,target){
   document.getElementById("groups").innerHTML=html;
 }
 
+function escapeHtml(s){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#39;");
+}
+
 function clearAll(){
   document.getElementById("raw").value="";
+  document.getElementById("leaders").value="";
   document.getElementById("groups").innerHTML="";
+  const note=document.getElementById("assignNote");
+  note.style.display="none";
+  note.innerHTML="";
 }
 </script>
 </body>
