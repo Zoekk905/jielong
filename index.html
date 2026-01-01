@@ -41,6 +41,7 @@ h1{
 textarea{
   width:100%;
   min-height:220px;
+  box-sizing:border-box;
   padding:12px 14px;
   border-radius:6px;
   border:1px solid #ccc;
@@ -50,10 +51,9 @@ textarea{
   background:#fff;
   outline:none;
 }
-textarea:focus{ border-color:#4c8bf5; }
 
-textarea.small{
-  min-height:120px;
+textarea:focus{
+  border-color:#4c8bf5;
 }
 
 .row{
@@ -105,7 +105,6 @@ input[type="number"]{
   border:1px solid #ddd;
   border-radius:8px;
   background:#fff;
-  overflow:hidden;
 }
 
 .ghead{
@@ -125,19 +124,19 @@ input[type="number"]{
   gap:10px;
   min-width:0;
 }
+
 .badge{
   display:inline-flex;
   align-items:center;
   gap:6px;
-  padding:3px 8px;
+  padding:3px 10px;
   border-radius:999px;
-  border:1px solid #d0d0d0;
-  background:#fff;
-  font-size:12px;
-  color:#333;
+  border:1px solid #bcd3ff;
+  background:#eef5ff;
+  color:#1d4ed8;
+  font-weight:600;
   white-space:nowrap;
 }
-.badge b{ font-weight:700; }
 
 table{
   width:100%;
@@ -168,14 +167,7 @@ td.seq,th.seq{
 
 .ok{color:#2e8b57;}
 .warn{color:#c0392b;}
-
-.note{
-  font-size:13px;
-  color:#666;
-  margin-top:10px;
-  line-height:1.5;
-}
-.note .warn{font-weight:700;}
+.muted{color:#777;}
 </style>
 </head>
 
@@ -183,14 +175,21 @@ td.seq,th.seq{
 <div class="wrap">
   <h1>微信接龙自动分组</h1>
   <div class="sub">
-    粘贴接龙 → 自动解析 → 先按顺序分组（不拆分任何人金额）→ 再按组长ID分配给“组里没有该组长ID”的组
+    粘贴接龙 → 自动解析 → 只显示分组结果（不拆分任何人金额）
   </div>
 
   <div class="card">
-    <div style="font-weight:700;margin-bottom:8px;">① 粘贴接龙</div>
-    <textarea id="raw" placeholder="1. 张三 100
-2. 李四 20
-3. 王五 50"></textarea>
+    <label style="font-weight:600;margin-bottom:6px;display:block;">接龙原文</label>
+    <textarea id="raw" placeholder="1. 小丁 100
+2. 小程 20
+3. 小鑫 50"></textarea>
+
+    <div style="height:10px;"></div>
+
+    <label style="font-weight:600;margin-bottom:6px;display:block;">组长名单（每行一个，可写：梅梅 / 梅梅组 / 梅梅（xx）都能识别）</label>
+    <textarea id="leaders" placeholder="组长1
+    组长2
+    组长3"></textarea>
 
     <div class="row">
       <label>每组金额
@@ -206,18 +205,9 @@ td.seq,th.seq{
       <button onclick="run()">分组</button>
       <button class="secondary" onclick="clearAll()">清空</button>
     </div>
-  </div>
-
-  <div class="card">
-    <div style="font-weight:700;margin-bottom:8px;">② 组长ID列表（每行一个 / 可用逗号分隔也行）</div>
-    <textarea id="leaders" class="small" placeholder="例如：
-张三
-王五"></textarea>
-    <div class="note">
-      分配规则：分完组后，按组长输入顺序依次分配到<strong>第一个</strong>“组里不包含该组长ID”的组（且该组尚未分配组长）。
-      若找不到符合的组，会提示你哪些组长未成功分配。
+    <div class="sub" style="margin:10px 0 0;">
+      组长分配规则：按组 1→2→3… 依次分配；每组找“顺位第一个”不在该组里的组长；并且保证该组内不含该组长的接龙（支持去空格/去括号/去后缀/模糊匹配）。
     </div>
-    <div id="assignNote" class="note" style="display:none;"></div>
   </div>
 
   <div class="card">
@@ -227,6 +217,9 @@ td.seq,th.seq{
 </div>
 
 <script>
+/** =========================
+ * 1) 解析接龙
+ * ========================= */
 function parseItems(text){
   const lines=text.replace(/\r/g,"")
     .replace(/(\d+)[\.\、]/g,"\n$1.")
@@ -240,16 +233,12 @@ function parseItems(text){
     let m=l.match(/^(\d+)\.\s*/);
     let no=m?parseInt(m[1]):seq;
     if(m) l=l.replace(/^(\d+)\.\s*/,"");
-
-    // 取最后一个数字为金额
     let a=l.match(/(\d+)(?!.*\d)/);
     if(!a) continue;
-
     let amount=parseInt(a[1],10);
-    if(!Number.isFinite(amount) || amount<=0) continue;
+    if(!(amount>0)) continue;
 
     let id=l.replace(a[1],"").trim();
-    id=id.replace(/[：:，,。.]$/g,"").trim();
     if(!id) continue;
 
     items.push({no,id,amount});
@@ -258,15 +247,78 @@ function parseItems(text){
   return items;
 }
 
+/** =========================
+ * 2) 解析组长名单
+ * ========================= */
 function parseLeaders(text){
-  // 支持：换行 / 逗号 / 顿号 / 分号
-  return text
-    .replace(/\r/g,"")
-    .split(/[\n,，;；、]+/g)
+  return text.replace(/\r/g,"")
+    .split("\n")
     .map(s=>s.trim())
     .filter(Boolean);
 }
 
+/** =========================
+ * 3) 更稳的“同人识别”归一化
+ *    - 去空格
+ *    - 去括号/中文括号内容
+ *    - 去常见符号
+ *    - 去常见后缀（组/队/团/班/号/同学/老师/老板...）
+ * ========================= */
+function normName(s){
+  if(!s) return "";
+  let t = String(s);
+
+  // 全角转半角（常见：（）【】等）
+  t = t.replace(/（/g,"(").replace(/）/g,")")
+       .replace(/【/g,"[").replace(/】/g,"]");
+
+  // 去括号内容： (xxx) [xxx] {xxx}
+  t = t.replace(/\([^)]*\)/g,"")
+       .replace(/\[[^\]]*\]/g,"")
+       .replace(/\{[^}]*\}/g,"");
+
+  // 去空格（含全角空格）
+  t = t.replace(/[\s\u3000]+/g,"");
+
+  // 去常见分隔/符号
+  t = t.replace(/[·•、,，.。:：;；!！?？"'“”‘’\-—_~`@#$%^&*+=<>\\/|]/g,"");
+
+  // 去常见尾巴（可按你群里习惯继续加）
+  const suffixes = [
+    "组","小组","队","战队","团","班","号","同学","老师","老板","同事","家人"
+  ];
+  for (const suf of suffixes){
+    if (t.endsWith(suf) && t.length > suf.length){
+      t = t.slice(0, -suf.length);
+      break;
+    }
+  }
+
+  return t;
+}
+
+/** 同名模糊匹配：
+ * - 归一化后：完全相等 ✅
+ * - 或者互为包含（短名包含在长名里）✅
+ */
+function samePerson(a,b){
+  const na = normName(a);
+  const nb = normName(b);
+  if(!na || !nb) return false;
+  if(na === nb) return true;
+
+  const short = na.length <= nb.length ? na : nb;
+  const long  = na.length <= nb.length ? nb : na;
+
+  // 要求短的至少2个字，避免“梅”匹配太泛
+  if(short.length >= 2 && long.includes(short)) return true;
+
+  return false;
+}
+
+/** =========================
+ * 4) 组合补齐
+ * ========================= */
 function findCombo(arr,need,k,start=0,path=[]){
   if(need===0 && path.length===k) return path;
   if(path.length>=k) return null;
@@ -279,108 +331,115 @@ function findCombo(arr,need,k,start=0,path=[]){
   return null;
 }
 
-/**
- * 分配组长：按输入顺序，找“未分配组长的组”里第一个不含该组长ID的组
- * 注意：这里是“包含”判定 => 采用严格相等匹配（组员ID 去空格后与组长ID 去空格后相等）
- */
-function assignLeaders(groups, leaderList){
-  const norm = s => String(s).trim();
-
-  // 预建每组的成员ID集合（用于快速判断）
-  groups.forEach(g=>{
-    g.leader = null;
-    g.memberSet = new Set(g.items.map(it=>norm(it.id)));
-  });
-
-  const unassigned = [];
-  for(const leader of leaderList){
-    const L = norm(leader);
-    let picked = -1;
-
-    for(let i=0;i<groups.length;i++){
-      const g = groups[i];
-      if(g.leader) continue; // 这组已有组长
-      if(g.memberSet.has(L)) continue; // 这组里有该组长的接龙，跳过
-      picked = i;
-      break;
-    }
-
-    if(picked>=0){
-      groups[picked].leader = L;
-    }else{
-      unassigned.push(L);
-    }
-  }
-
-  // 清理临时字段
-  groups.forEach(g=>{ delete g.memberSet; });
-
-  return { groups, unassigned };
-}
-
-function run(){
-  const raw=document.getElementById("raw").value;
-  let arr=parseItems(raw);
-  const target=+document.getElementById("target").value;
-  const maxK=+document.getElementById("maxK").value;
-  const showSeq=document.getElementById("showSeq").checked;
-
-  const leadersText = document.getElementById("leaders").value;
-  const leaderList = parseLeaders(leadersText);
-
+/** =========================
+ * 5) 先按顺序分组（你的老逻辑）
+ * ========================= */
+function makeGroupsInOrder(arr, target, maxK){
   const groups=[];
-  while(arr.length){
+  const a = [...arr];
+  while(a.length){
     let g=[],sum=0;
-
-    // ① 按顺序装入能装下的
-    while(arr.length && sum+arr[0].amount<=target){
-      g.push(arr.shift());
+    while(a.length && sum+a[0].amount<=target){
+      g.push(a.shift());
       sum+=g[g.length-1].amount;
     }
-
-    // ② 不足则从后面找组合补齐（不拆分任何人金额）
     if(sum<target){
       let need=target-sum;
       for(let k=1;k<=maxK;k++){
-        let c=findCombo(arr,need,k);
+        let c=findCombo(a,need,k);
         if(c){
-          c.sort((a,b)=>b-a).forEach(i=>g.push(arr.splice(i,1)[0]));
+          c.sort((x,y)=>y-x).forEach(i=>g.push(a.splice(i,1)[0]));
           sum=target;
           break;
         }
       }
     }
-
-    groups.push({sum,items:g});
+    groups.push({sum,items:g, leader:null});
   }
-
-  // ③ 分完组后：按组长列表分配到不包含组长的组（优先靠前）
-  const { groups: assignedGroups, unassigned } = assignLeaders(groups, leaderList);
-
-  render(assignedGroups, showSeq, target, leaderList, unassigned);
+  return groups;
 }
 
-function render(groups, showSeq, target, leaderList, unassigned){
-  // 提示信息
-  const note = document.getElementById("assignNote");
-  if(leaderList.length){
-    note.style.display="block";
-    if(unassigned.length){
-      note.innerHTML = `<span class="warn">有 ${unassigned.length} 个组长未成功分配：</span>${unassigned.join("、")}
-        <br>原因：剩余可分配的组，要么已分配组长，要么包含该组长的接龙。`;
-    }else{
-      note.innerHTML = `<span class="ok">组长分配完成：</span>共 ${leaderList.length} 位组长，已全部分配到不含本人接龙的组。`;
+/** =========================
+ * 6) 组长分配（按组顺序优先）
+ * 规则：对每一组，找“顺位第一个”满足：
+ *   - 该组内没有这个组长（samePerson）
+ * 分配后该组 leader=组长；该组不重复分配
+ * ========================= */
+function assignLeaders(groups, leaders){
+  if(!leaders.length) return {groups, unassigned:[]};
+
+  let li = 0; // 组长顺位指针（只前进，不回头）
+  const used = new Set(); // 已经用过的组长（按 index）
+
+  for(let gi=0; gi<groups.length; gi++){
+    const g = groups[gi];
+
+    // 这组里有哪些人（用于判断“组长是否在组里”）
+    const members = g.items.map(x=>x.id);
+
+    // 从当前顺位开始找第一个可用组长
+    let foundIndex = -1;
+    for(let t=li; t<leaders.length; t++){
+      if(used.has(t)) continue;
+
+      const leaderName = leaders[t];
+
+      // 组内不能出现该组长
+      const inGroup = members.some(mem => samePerson(mem, leaderName));
+      if(!inGroup){
+        foundIndex = t;
+        break;
+      }
     }
-  }else{
-    note.style.display="none";
-    note.innerHTML="";
+
+    // 如果从 li 往后没找到，就从头再扫一遍（尽量都能分配到）
+    if(foundIndex === -1){
+      for(let t=0; t<leaders.length; t++){
+        if(used.has(t)) continue;
+        const leaderName = leaders[t];
+        const inGroup = members.some(mem => samePerson(mem, leaderName));
+        if(!inGroup){
+          foundIndex = t;
+          break;
+        }
+      }
+    }
+
+    if(foundIndex !== -1){
+      g.leader = leaders[foundIndex];   // 展示用原文（不加序号）
+      used.add(foundIndex);
+      // “尽量按顺序”：如果正好用了 li，就把 li 往后推
+      if(foundIndex === li){
+        while(li < leaders.length && used.has(li)) li++;
+      }
+    }else{
+      g.leader = null; // 确实没法分配（例如组长都在这组里）
+    }
   }
 
+  // 没用上的组长
+  const unassigned = leaders.filter((_,idx)=>!used.has(idx));
+  return {groups, unassigned};
+}
+
+/** =========================
+ * 7) 渲染
+ * ========================= */
+function escapeHtml(s){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#39;");
+}
+
+function render(groups,showSeq,target, unassignedLeaders){
   let html='<div class="groups">';
   groups.forEach((g,i)=>{
     const leaderBadge = g.leader
-      ? `<span class="badge">组长：<b>${escapeHtml(g.leader)}</b></span>`
-      : (leaderList.length ? `<span class="badge" style="opacity:.75;">未分配组长</span>` : ``);
+      ? `<span class="badge">组长：${escapeHtml(g.leader)}</span>`
+      : `<span class="badge muted">组长：未分配</span>`;
 
     html+=`
     <div class="gcard">
@@ -403,27 +462,44 @@ function render(groups, showSeq, target, leaderList, unassigned){
     </div>`;
   });
   html+='</div>';
+
+  if(unassignedLeaders && unassignedLeaders.length){
+    html += `
+      <div style="margin-top:12px;color:#666;font-size:13px;">
+        <b>未分配到组的组长：</b>${escapeHtml(unassignedLeaders.join("、"))}
+        <div style="margin-top:6px;">提示：如果某些组长名字在所有组里都出现过（或被模糊匹配命中），就可能无法分配。</div>
+      </div>
+    `;
+  }
+
   document.getElementById("groups").innerHTML=html;
 }
 
-function escapeHtml(s){
-  return String(s)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#39;");
+/** =========================
+ * 8) 主流程
+ * ========================= */
+function run(){
+  const raw=document.getElementById("raw").value;
+  let arr=parseItems(raw);
+
+  const leadersRaw = document.getElementById("leaders").value;
+  const leaders = parseLeaders(leadersRaw);
+
+  const target=+document.getElementById("target").value;
+  const maxK=+document.getElementById("maxK").value;
+  const showSeq=document.getElementById("showSeq").checked;
+
+  const groups = makeGroupsInOrder(arr, target, maxK);
+  const {groups: assignedGroups, unassigned} = assignLeaders(groups, leaders);
+
+  render(assignedGroups, showSeq, target, unassigned);
 }
 
 function clearAll(){
   document.getElementById("raw").value="";
   document.getElementById("leaders").value="";
   document.getElementById("groups").innerHTML="";
-  const note=document.getElementById("assignNote");
-  note.style.display="none";
-  note.innerHTML="";
 }
 </script>
 </body>
 </html>
-
