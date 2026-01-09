@@ -2,172 +2,58 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>微信接龙自动分组</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TOMATO's</title>
 <style>
 *{box-sizing:border-box;}
-
 body{
   margin:0;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial;
   background:#f6f7f9;
   color:#222;
 }
-
-.wrap{
-  max-width:1100px;
-  margin:24px auto;
-  padding:0 16px;
-}
-
-h1{
-  font-size:22px;
-  margin:0 0 6px;
-}
-
-.sub{
-  color:#555;
-  font-size:13px;
-  margin-bottom:14px;
-}
-
-.card{
-  background:#fff;
-  border:1px solid #ddd;
-  border-radius:8px;
-  padding:16px;
-  margin-bottom:14px;
-}
-
+.wrap{max-width:1100px;margin:24px auto;padding:0 16px;}
+h1{font-size:22px;margin:0 0 6px;}
+.sub{color:#555;font-size:13px;margin-bottom:14px;line-height:1.5;}
+.card{background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:14px;}
 textarea{
-  width:100%;
-  min-height:220px;
-  box-sizing:border-box;
-  padding:12px 14px;
-  border-radius:6px;
-  border:1px solid #ccc;
-  font-size:14px;
-  line-height:1.6;
-  resize:vertical;
-  background:#fff;
-  outline:none;
+  width:100%;min-height:220px;padding:12px 14px;
+  border-radius:6px;border:1px solid #ccc;
+  font-size:14px;line-height:1.6;resize:vertical;background:#fff;outline:none;
 }
-
-textarea:focus{
-  border-color:#4c8bf5;
-}
-
-.row{
-  display:flex;
-  gap:12px;
-  flex-wrap:wrap;
-  align-items:center;
-  margin-top:12px;
-}
-
+textarea:focus{border-color:#4c8bf5;}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:12px;}
 button{
-  padding:7px 14px;
-  border-radius:6px;
-  border:1px solid #4c8bf5;
-  background:#4c8bf5;
-  color:#fff;
-  font-weight:600;
-  cursor:pointer;
+  padding:7px 14px;border-radius:6px;border:1px solid #4c8bf5;
+  background:#4c8bf5;color:#fff;font-weight:600;cursor:pointer;
 }
-
-button.secondary{
-  background:#fff;
-  color:#333;
-  border:1px solid #ccc;
-}
-
-label{
-  font-size:13px;
-  color:#444;
-  display:flex;
-  align-items:center;
-  gap:6px;
-}
-
+button.secondary{background:#fff;color:#333;border:1px solid #ccc;}
+label{font-size:13px;color:#444;display:flex;align-items:center;gap:6px;}
 input[type="number"]{
-  width:110px;
-  padding:6px 8px;
-  border-radius:6px;
-  border:1px solid #ccc;
+  width:130px;padding:6px 8px;border-radius:6px;border:1px solid #ccc;
 }
-
-.groups{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
-  gap:12px;
-}
-
-.gcard{
-  border:1px solid #ddd;
-  border-radius:8px;
-  background:#fff;
-}
-
+.hr{height:1px;background:#eee;margin:12px 0;}
+.groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;}
+.gcard{border:1px solid #ddd;border-radius:8px;background:#fff;overflow:hidden;}
 .ghead{
-  background:#f3f3f3;
-  border-bottom:1px solid #ddd;
-  padding:8px 10px;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  font-size:13px;
-  gap:10px;
+  background:#f3f3f3;border-bottom:1px solid #ddd;
+  padding:8px 10px;display:flex;justify-content:space-between;align-items:center;
+  font-size:13px;gap:10px;
 }
-
-.ghead .left{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  min-width:0;
-}
-
+.left{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
 .badge{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  padding:3px 10px;
-  border-radius:999px;
-  border:1px solid #bcd3ff;
-  background:#eef5ff;
-  color:#1d4ed8;
-  font-weight:600;
-  white-space:nowrap;
+  padding:3px 10px;border-radius:999px;border:1px solid #bcd3ff;
+  background:#eef5ff;color:#1d4ed8;font-weight:600;white-space:nowrap;
 }
-
-table{
-  width:100%;
-  border-collapse:collapse;
-}
-
-th,td{
-  border:1px solid #ddd;
-  padding:7px 9px;
-  font-size:14px;
-}
-
-th{
-  background:#f6f6f6;
-  text-align:left;
-}
-
-td.num,th.num{
-  text-align:right;
-  width:100px;
-}
-
-td.seq,th.seq{
-  text-align:right;
-  width:70px;
-  color:#666;
-}
-
+.badge.gray{border-color:#ddd;background:#fff;color:#555;}
 .ok{color:#2e8b57;}
 .warn{color:#c0392b;}
-.muted{color:#777;}
+table{width:100%;border-collapse:collapse;}
+th,td{border:1px solid #ddd;padding:7px 9px;font-size:14px;}
+th{background:#f6f6f6;text-align:left;}
+td.seq{width:70px;text-align:right;color:#666;}
+td.money{text-align:right;width:90px;}
+.notice{margin-top:10px;color:#666;font-size:12px;line-height:1.5;}
 </style>
 </head>
 
@@ -175,39 +61,36 @@ td.seq,th.seq{
 <div class="wrap">
   <h1>微信接龙自动分组</h1>
   <div class="sub">
-    粘贴接龙 → 自动解析 → 只显示分组结果（不拆分任何人金额）
+    规则：A 组必须凑满；凑不满就停止做 A。B 有填：剩余按 B 分（允许不满）。B 不填：剩余继续按 A 拆成多组（允许不满，但每组 ≤ A）。<br>
   </div>
 
   <div class="card">
     <label style="font-weight:600;margin-bottom:6px;display:block;">接龙原文</label>
-    <textarea id="raw" placeholder="1. 小丁 100
-2. 小程 20
-3. 小鑫 50"></textarea>
+    <textarea id="raw" placeholder="1.小丁 100
+2.小程 50
+3.小鑫 50"></textarea>
 
-    <div style="height:10px;"></div>
+    <div class="hr"></div>
 
-    <label style="font-weight:600;margin-bottom:6px;display:block;">组长名单（每行一个，可写：小丁 / 小丁组 / 小丁（xx）都能识别）</label>
-    <textarea id="leaders" placeholder="组长1
-组长2
-组长3"></textarea>
+    <label style="font-weight:600;margin-bottom:6px;display:block;">组长名单（可选，每行一个）</label>
+    <textarea id="leaders" placeholder="DD
+CC
+XX" style="min-height:120px;"></textarea>
 
     <div class="row">
-      <label>每组金额
-        <input id="target" type="number" value="500">
-      </label>
-      <label>最多补齐人数
-        <input id="maxK" type="number" value="6">
-      </label>
-      <label>
-        <input id="showSeq" type="checkbox" checked>
-        显示原序号
-      </label>
+      <label>A 金额 <input id="aTarget" type="number" value="500" min="1"></label>
+      <label>B 金额（可空） <input id="bTarget" type="number" placeholder="留空=只按A" min="1"></label>
+      <label>先分 n 组 A <input id="nGroups" type="number" placeholder="可空" min="1"></label>
+    </div>
+
+    <div class="row">
+      <label>最多补齐人数 <input id="maxK" type="number" value="6" min="1"></label>
+      <label><input id="showSeq" type="checkbox" checked> 显示原序号</label>
       <button onclick="run()">分组</button>
       <button class="secondary" onclick="clearAll()">清空</button>
     </div>
-    <div class="sub" style="margin:10px 0 0;">
-      组长分配规则：按组 1→2→3… 依次分配；每组找“顺位第一个”不在该组里的组长；并且保证该组内不含该组长的接龙（支持去空格/去括号/去后缀/模糊匹配）。
-    </div>
+
+    <div class="notice" id="notice"></div>
   </div>
 
   <div class="card">
@@ -217,214 +100,214 @@ td.seq,th.seq{
 </div>
 
 <script>
-/** =========================
- * 1) 解析接龙
- * ========================= */
+/* ===================== 解析（稳） =====================
+支持：
+- "1. 张三 100"
+- "1、张三：100元"
+- "1) 张三 100"
+- "张三 100"
+金额规则：取“行末最后一个数字”（可带小数，但最终按整数四舍五入）
+*/
 function parseItems(text){
-  const lines=text.replace(/\r/g,"")
-    .replace(/(\d+)[\.\、]/g,"\n$1.")
+  const lines = text
+    .replace(/\r\n/g,"\n")
+    .replace(/\r/g,"\n")
     .split("\n")
     .map(s=>s.trim())
     .filter(Boolean);
 
-  let seq=1;
-  const items=[];
-  for(let l of lines){
-    let m=l.match(/^(\d+)\.\s*/);
-    let no=m?parseInt(m[1]):seq;
-    if(m) l=l.replace(/^(\d+)\.\s*/,"");
-    let a=l.match(/(\d+)(?!.*\d)/);
-    if(!a) continue;
-    let amount=parseInt(a[1],10);
+  const items = [];
+  let fallback = 1;
+
+  for(const line of lines){
+    let rest = line;
+    let order = null;
+
+    // 识别序号前缀：12. / 12、 / 12) / 12）
+    const mOrder = rest.match(/^\s*(\d+)\s*(?:[.\、\)\）]|、)\s*(.*)$/);
+    if(mOrder){
+      order = parseInt(mOrder[1],10);
+      rest = (mOrder[2]||"").trim();
+    }
+
+    // 金额取末尾数字（允许 "元"）
+    const mAmt = rest.match(/(-?\d+(?:\.\d+)?)\s*(?:元|rmb|RMB)?\s*$/);
+    if(!mAmt) continue;
+
+    let amount = Number(mAmt[1]);
+    if(!Number.isFinite(amount)) continue;
+    amount = Math.round(amount);
     if(!(amount>0)) continue;
 
-    let id=l.replace(a[1],"").trim();
+    // ID = 去掉末尾金额后的部分
+    let id = rest.slice(0, mAmt.index).trim();
+    id = id.replace(/[：:，,。.]$/g,"").trim();
     if(!id) continue;
 
-    items.push({no,id,amount});
-    seq=no+1;
+    items.push({ no: (order==null ? fallback : order), id, amount });
+    fallback++;
   }
   return items;
 }
 
-/** =========================
- * 2) 解析组长名单
- * ========================= */
-function parseLeaders(text){
-  return text.replace(/\r/g,"")
-    .split("\n")
-    .map(s=>s.trim())
-    .filter(Boolean);
-}
-
-/** =========================
- * 3) 更稳的“同人识别”归一化
- *    - 去空格
- *    - 去括号/中文括号内容
- *    - 去常见符号
- *    - 去常见后缀（组/队/团/班/号/同学/老师/老板...）
- * ========================= */
-function normName(s){
-  if(!s) return "";
-  let t = String(s);
-
-  // 全角转半角（常见：（）【】等）
-  t = t.replace(/（/g,"(").replace(/）/g,")")
-       .replace(/【/g,"[").replace(/】/g,"]");
-
-  // 去括号内容： (xxx) [xxx] {xxx}
-  t = t.replace(/\([^)]*\)/g,"")
-       .replace(/\[[^\]]*\]/g,"")
-       .replace(/\{[^}]*\}/g,"");
-
-  // 去空格（含全角空格）
-  t = t.replace(/[\s\u3000]+/g,"");
-
-  // 去常见分隔/符号
-  t = t.replace(/[·•、,，.。:：;；!！?？"'“”‘’\-—_~`@#$%^&*+=<>\\/|]/g,"");
-
-  // 去常见尾巴（可按你群里习惯继续加）
-  const suffixes = [
-    "组","小组","队","战队","团","班","号","同学","老师","老板","同事","家人"
-  ];
-  for (const suf of suffixes){
-    if (t.endsWith(suf) && t.length > suf.length){
-      t = t.slice(0, -suf.length);
-      break;
-    }
-  }
-
-  return t;
-}
-
-/** 同名模糊匹配：
- * - 归一化后：完全相等 ✅
- * - 或者互为包含（短名包含在长名里）✅
- */
-function samePerson(a,b){
-  const na = normName(a);
-  const nb = normName(b);
-  if(!na || !nb) return false;
-  if(na === nb) return true;
-
-  const short = na.length <= nb.length ? na : nb;
-  const long  = na.length <= nb.length ? nb : na;
-
-  // 要求短的至少2个字，避免“梅”匹配太泛
-  if(short.length >= 2 && long.includes(short)) return true;
-
-  return false;
-}
-
-/** =========================
- * 4) 组合补齐
- * ========================= */
-function findCombo(arr,need,k,start=0,path=[]){
+/* ===================== 组合补齐（不拆分） ===================== */
+function findCombo(arr, need, k, start=0, path=[]){
   if(need===0 && path.length===k) return path;
   if(path.length>=k) return null;
   for(let i=start;i<arr.length;i++){
     if(arr[i].amount<=need){
-      let r=findCombo(arr,need-arr[i].amount,k,i+1,[...path,i]);
+      const r = findCombo(arr, need-arr[i].amount, k, i+1, [...path,i]);
       if(r) return r;
     }
   }
   return null;
 }
 
-/** =========================
- * 5) 先按顺序分组（你的老逻辑）
- * ========================= */
-function makeGroupsInOrder(arr, target, maxK){
-  const groups=[];
-  const a = [...arr];
-  while(a.length){
-    let g=[],sum=0;
-    while(a.length && sum+a[0].amount<=target){
-      g.push(a.shift());
-      sum+=g[g.length-1].amount;
-    }
-    if(sum<target){
-      let need=target-sum;
-      for(let k=1;k<=maxK;k++){
-        let c=findCombo(a,need,k);
-        if(c){
-          c.sort((x,y)=>y-x).forEach(i=>g.push(a.splice(i,1)[0]));
-          sum=target;
-          break;
-        }
+/* ===================== 组长匹配（稳） ===================== */
+function normName(s){
+  if(!s) return "";
+  let t = String(s);
+
+  // 统一括号 + 去括号内容
+  t = t.replace(/（/g,"(").replace(/）/g,")").replace(/【/g,"[").replace(/】/g,"]");
+  t = t.replace(/\([^)]*\)/g,"").replace(/\[[^\]]*\]/g,"").replace(/\{[^}]*\}/g,"");
+
+  // 去空白
+  t = t.replace(/[\s\u3000]+/g,"");
+
+  // 去常见标点/符号
+  t = t.replace(/[·•、,，.。:：;；!！?？"'“”‘’\-—_~`@#$%^&*+=<>\\/|]/g,"");
+
+  // 小写化
+  t = t.toLowerCase();
+
+  // 去常见后缀（末尾）
+  t = t.replace(/(小组|团队|战队|家族|群|组|club)$/i,"");
+
+  return t;
+}
+function samePerson(a,b){
+  const na = normName(a), nb = normName(b);
+  if(!na || !nb) return false;
+  if(na === nb) return true;
+  const short = na.length<=nb.length ? na : nb;
+  const long  = na.length<=nb.length ? nb : na;
+  return (short.length>=2 && long.includes(short));
+}
+function parseLeaders(text){
+  return text.replace(/\r/g,"").split("\n").map(s=>s.trim()).filter(Boolean);
+}
+function groupHasLeader(group, leaderName){
+  return group.items.some(it => samePerson(it.id, leaderName));
+}
+
+/* ===================== 单组：顺序优先 + 组合补齐 ===================== */
+function takeOneGroup(arr, target, maxK){
+  let g=[], sum=0;
+
+  while(arr.length && sum + arr[0].amount <= target){
+    g.push(arr.shift());
+    sum += g[g.length-1].amount;
+  }
+
+  if(sum < target){
+    const need = target - sum;
+    for(let k=1;k<=maxK;k++){
+      const idxs = findCombo(arr, need, k);
+      if(idxs){
+        idxs.sort((a,b)=>b-a).forEach(i => g.push(arr.splice(i,1)[0]));
+        sum = target;
+        break;
       }
     }
-    groups.push({sum,items:g, leader:null});
+  }
+
+  g.sort((a,b)=>a.no-b.no);
+  return { group:{sum, items:g, leader:null}, arr };
+}
+
+/* ===================== 阶段A：必须凑满 ===================== */
+function makeStageA(items, aTarget, maxK, nLimit){
+  const arr = [...items];
+  const groupsA = [];
+  const limit = (Number.isFinite(nLimit) && nLimit>0) ? Math.floor(nLimit) : Infinity;
+
+  while(arr.length && groupsA.length < limit){
+    const snap = arr.slice();          // 用于回滚
+    const r = takeOneGroup(arr, aTarget, maxK);
+
+    if(r.group.sum !== aTarget){
+      // 回滚并停止
+      arr.length = 0;
+      snap.forEach(x=>arr.push(x));
+      break;
+    }
+
+    r.group.stage = "A";
+    groupsA.push(r.group);
+  }
+
+  return { groupsA, remaining: arr };
+}
+
+/* ===================== 按目标拆分（允许不满，但每组 <= target） ===================== */
+function splitByTarget(remaining, target, maxK, stage){
+  const arr = [...remaining];
+  const out = [];
+  while(arr.length){
+    const r = takeOneGroup(arr, target, maxK);
+    r.group.stage = stage;
+    out.push(r.group);
+  }
+  return out;
+}
+
+/* ===================== B 空：剩余继续按 A 拆（不会超 A） ===================== */
+function makeAllByA(items, aTarget, maxK, nLimit){
+  const stageA = makeStageA(items, aTarget, maxK, nLimit);
+  const groups = [...stageA.groupsA];
+  if(stageA.remaining.length){
+    groups.push(...splitByTarget(stageA.remaining, aTarget, maxK, "A_LAST"));
   }
   return groups;
 }
 
-/** =========================
- * 6) 组长分配（按组顺序优先）
- * 规则：对每一组，找“顺位第一个”满足：
- *   - 该组内没有这个组长（samePerson）
- * 分配后该组 leader=组长；该组不重复分配
- * ========================= */
+/* ===================== 组长分配：按组顺序找“顺位第一个不在组里”的组长 ===================== */
 function assignLeaders(groups, leaders){
-  if(!leaders.length) return {groups, unassigned:[]};
+  if(!leaders.length) return groups;
 
-  let li = 0; // 组长顺位指针（只前进，不回头）
-  const used = new Set(); // 已经用过的组长（按 index）
+  let li = 0;
+  const used = new Set();
 
   for(let gi=0; gi<groups.length; gi++){
     const g = groups[gi];
+    let found = -1;
 
-    // 这组里有哪些人（用于判断“组长是否在组里”）
-    const members = g.items.map(x=>x.id);
-
-    // 从当前顺位开始找第一个可用组长
-    let foundIndex = -1;
     for(let t=li; t<leaders.length; t++){
       if(used.has(t)) continue;
-
-      const leaderName = leaders[t];
-
-      // 组内不能出现该组长
-      const inGroup = members.some(mem => samePerson(mem, leaderName));
-      if(!inGroup){
-        foundIndex = t;
-        break;
-      }
+      if(!groupHasLeader(g, leaders[t])){ found = t; break; }
     }
-
-    // 如果从 li 往后没找到，就从头再扫一遍（尽量都能分配到）
-    if(foundIndex === -1){
+    if(found === -1){
       for(let t=0; t<leaders.length; t++){
         if(used.has(t)) continue;
-        const leaderName = leaders[t];
-        const inGroup = members.some(mem => samePerson(mem, leaderName));
-        if(!inGroup){
-          foundIndex = t;
-          break;
-        }
+        if(!groupHasLeader(g, leaders[t])){ found = t; break; }
       }
     }
 
-    if(foundIndex !== -1){
-      g.leader = leaders[foundIndex];   // 展示用原文（不加序号）
-      used.add(foundIndex);
-      // “尽量按顺序”：如果正好用了 li，就把 li 往后推
-      if(foundIndex === li){
+    if(found !== -1){
+      g.leader = leaders[found];
+      used.add(found);
+      if(found === li){
         while(li < leaders.length && used.has(li)) li++;
       }
     }else{
-      g.leader = null; // 确实没法分配（例如组长都在这组里）
+      g.leader = null;
     }
   }
-
-  // 没用上的组长
-  const unassigned = leaders.filter((_,idx)=>!used.has(idx));
-  return {groups, unassigned};
+  return groups;
 }
 
-/** =========================
- * 7) 渲染
- * ========================= */
+/* ===================== 渲染 ===================== */
 function escapeHtml(s){
   return String(s)
     .replaceAll("&","&amp;")
@@ -434,73 +317,110 @@ function escapeHtml(s){
     .replaceAll("'","&#39;");
 }
 
-function render(groups,showSeq,target, unassignedLeaders){
-  let html='<div class="groups">';
+function render(groups, showSeq, aTarget, bTarget){
+  const el = document.getElementById("groups");
+  let html = '<div class="groups">';
+
   groups.forEach((g,i)=>{
-    const leaderBadge = g.leader
-      ? `<span class="badge">组长：${escapeHtml(g.leader)}</span>`
-      : `<span class="badge muted">组长：未分配</span>`;
+    const isA = (g.stage==="A" || g.stage==="A_LAST");
+    const target = isA ? aTarget : bTarget;
+    const stageText = (g.stage==="A") ? `阶段A：目标 ${aTarget}`
+                    : (g.stage==="B") ? `阶段B：目标 ${bTarget}`
+                    : `按A继续拆分`;
 
-    html+=`
-    <div class="gcard">
-      <div class="ghead">
-        <div class="left">
-          <strong>第 ${i+1} 组</strong>
-          ${leaderBadge}
-        </div>
-        <span class="${g.sum===target?'ok':'warn'}">合计 ${g.sum}</span>
-      </div>
-      <table>
-        <tr>${showSeq?'<th class="seq">序号</th>':''}<th>ID</th><th class="num">金额</th></tr>
-        ${g.items.map(it=>`
-          <tr>
-            ${showSeq?`<td class="seq">${it.no}</td>`:''}
-            <td>${escapeHtml(it.id)}</td>
-            <td class="num">${it.amount}</td>
-          </tr>`).join("")}
-      </table>
-    </div>`;
-  });
-  html+='</div>';
+    const stageBadge = `<span class="badge gray">${stageText}</span>`;
+    const leaderBadge = g.leader ? `<span class="badge">组长：${escapeHtml(g.leader)}</span>` : ``;
+    const sumClass = (target && g.sum===target) ? "ok" : "warn";
 
-  if(unassignedLeaders && unassignedLeaders.length){
     html += `
-      <div style="margin-top:12px;color:#666;font-size:13px;">
-        <b>未分配到组的组长：</b>${escapeHtml(unassignedLeaders.join("、"))}
-        <div style="margin-top:6px;">提示：如果某些组长名字在所有组里都出现过（或被模糊匹配命中），就可能无法分配。</div>
+      <div class="gcard">
+        <div class="ghead">
+          <div class="left">
+            <strong>第 ${i+1} 组</strong>
+            ${stageBadge}
+            ${leaderBadge}
+          </div>
+          <span class="${sumClass}">合计 ${g.sum}</span>
+        </div>
+        <table>
+          <tr>
+            ${showSeq?'<th class="seq">序号</th>':''}
+            <th>ID</th>
+            <th class="money">金额</th>
+          </tr>
+          ${g.items.map(it=>`
+            <tr>
+              ${showSeq?`<td class="seq">${it.no}</td>`:''}
+              <td>${escapeHtml(it.id)}</td>
+              <td class="money">${it.amount}</td>
+            </tr>`).join("")}
+        </table>
       </div>
     `;
-  }
+  });
 
-  document.getElementById("groups").innerHTML=html;
+  html += '</div>';
+  el.innerHTML = html;
 }
 
-/** =========================
- * 8) 主流程
- * ========================= */
+/* ===================== 主流程 ===================== */
 function run(){
-  const raw=document.getElementById("raw").value;
-  let arr=parseItems(raw);
+  const raw = document.getElementById("raw").value;
+  const items = parseItems(raw);
 
-  const leadersRaw = document.getElementById("leaders").value;
-  const leaders = parseLeaders(leadersRaw);
+  const notice = document.getElementById("notice");
+  notice.textContent = "";
 
-  const target=+document.getElementById("target").value;
-  const maxK=+document.getElementById("maxK").value;
-  const showSeq=document.getElementById("showSeq").checked;
+  if(!items.length){
+    document.getElementById("groups").innerHTML =
+      '<div style="color:#c0392b;">没有识别到有效数据：请确保每行末尾有金额数字（例如 “张三 100”）。</div>';
+    return;
+  }
 
-  const groups = makeGroupsInOrder(arr, target, maxK);
-  const {groups: assignedGroups, unassigned} = assignLeaders(groups, leaders);
+  const aTarget = Math.max(1, +document.getElementById("aTarget").value || 500);
+  const bText = document.getElementById("bTarget").value.trim();
+  const bTarget = bText ? Math.max(1, +bText) : null;
 
-  render(assignedGroups, showSeq, target, unassigned);
+  const nText = document.getElementById("nGroups").value.trim();
+  const nGroups = nText ? (+nText) : NaN;
+
+  const maxK = Math.max(1, +document.getElementById("maxK").value || 6);
+  const showSeq = document.getElementById("showSeq").checked;
+
+  // 提醒：若存在单笔 > 目标
+  const maxAmt = Math.max(...items.map(x=>x.amount));
+  if(maxAmt > aTarget){
+    notice.textContent = `注意：存在单笔金额 ${maxAmt} 大于 A=${aTarget}，这种条目无法放入“凑满A”的逻辑里，会影响A阶段可凑满组数。`;
+  }
+
+  let groups = [];
+  if(!bTarget){
+    // B 为空：全按 A 分（A 阶段必须满；剩余继续按 A 拆分，且每组 <= A）
+    groups = makeAllByA(items, aTarget, maxK, nGroups);
+  }else{
+    const stageA = makeStageA(items, aTarget, maxK, nGroups);
+    const groupsA = stageA.groupsA;
+    const groupsB = stageA.remaining.length ? splitByTarget(stageA.remaining, bTarget, maxK, "B") : [];
+    groups = [...groupsA, ...groupsB];
+  }
+
+  // 组长分配
+  const leaders = parseLeaders(document.getElementById("leaders").value);
+  if(leaders.length){
+    groups = assignLeaders(groups, leaders);
+  }
+
+  render(groups, showSeq, aTarget, bTarget || 0);
 }
 
 function clearAll(){
   document.getElementById("raw").value="";
   document.getElementById("leaders").value="";
+  document.getElementById("nGroups").value="";
+  document.getElementById("bTarget").value="";
   document.getElementById("groups").innerHTML="";
+  document.getElementById("notice").textContent="";
 }
 </script>
 </body>
 </html>
-
