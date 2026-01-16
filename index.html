@@ -62,6 +62,7 @@ td.money{text-align:right;width:90px;}
   <h1>微信接龙自动分组</h1>
   <div class="sub">
     规则：A 组必须凑满；凑不满就停止做 A。B 有填：剩余按 B 分（允许不满）。B 不填：剩余继续按 A 拆成多组（允许不满，但每组 ≤ A）。<br>
+    强调：只固定“金额分满（sum === target）”的组；未满组永远不固定，后续新增会优先补未满组，补满后才自动固定。<br>
   </div>
 
   <div class="card">
@@ -73,9 +74,9 @@ td.money{text-align:right;width:90px;}
     <div class="hr"></div>
 
     <label style="font-weight:600;margin-bottom:6px;display:block;">组长名单（可选，每行一个）</label>
-    <textarea id="leaders" placeholder="DD
-CC
-XX" style="min-height:120px;"></textarea>
+    <textarea id="leaders" placeholder="1 DD
+2 CC
+3 XX" style="min-height:120px;"></textarea>
 
     <div class="row">
       <label>A 金额 <input id="aTarget" type="number" value="500" min="1"></label>
@@ -86,6 +87,10 @@ XX" style="min-height:120px;"></textarea>
     <div class="row">
       <label>最多补齐人数 <input id="maxK" type="number" value="6" min="1"></label>
       <label><input id="showSeq" type="checkbox" checked> 显示原序号</label>
+
+      <label><input id="fixedFullOnly" type="checkbox" checked> 固定金额分满组</label>
+      <button class="secondary" onclick="clearFixed()">清除固定记录</button>
+
       <button onclick="run()">分组</button>
       <button class="secondary" onclick="clearAll()">清空</button>
     </div>
@@ -96,18 +101,15 @@ XX" style="min-height:120px;"></textarea>
   <div class="card">
     <strong>分组结果</strong>
     <div id="groups" style="margin-top:10px;"></div>
+
+    <div class="hr"></div>
+    <strong>未分配</strong>
+    <div id="unassigned" style="margin-top:10px;"></div>
   </div>
 </div>
 
 <script>
-/* ===================== 解析（稳） =====================
-支持：
-- "1. 张三 100"
-- "1、张三：100元"
-- "1) 张三 100"
-- "张三 100"
-金额规则：取“行末最后一个数字”（可带小数，但最终按整数四舍五入）
-*/
+/* ===================== 解析（稳） ===================== */
 function parseItems(text){
   const lines = text
     .replace(/\r\n/g,"\n")
@@ -123,14 +125,12 @@ function parseItems(text){
     let rest = line;
     let order = null;
 
-    // 识别序号前缀：12. / 12、 / 12) / 12）
     const mOrder = rest.match(/^\s*(\d+)\s*(?:[.\、\)\）]|、)\s*(.*)$/);
     if(mOrder){
       order = parseInt(mOrder[1],10);
       rest = (mOrder[2]||"").trim();
     }
 
-    // 金额取末尾数字（允许 "元"）
     const mAmt = rest.match(/(-?\d+(?:\.\d+)?)\s*(?:元|rmb|RMB)?\s*$/);
     if(!mAmt) continue;
 
@@ -139,7 +139,6 @@ function parseItems(text){
     amount = Math.round(amount);
     if(!(amount>0)) continue;
 
-    // ID = 去掉末尾金额后的部分
     let id = rest.slice(0, mAmt.index).trim();
     id = id.replace(/[：:，,。.]$/g,"").trim();
     if(!id) continue;
@@ -167,23 +166,12 @@ function findCombo(arr, need, k, start=0, path=[]){
 function normName(s){
   if(!s) return "";
   let t = String(s);
-
-  // 统一括号 + 去括号内容
   t = t.replace(/（/g,"(").replace(/）/g,")").replace(/【/g,"[").replace(/】/g,"]");
   t = t.replace(/\([^)]*\)/g,"").replace(/\[[^\]]*\]/g,"").replace(/\{[^}]*\}/g,"");
-
-  // 去空白
   t = t.replace(/[\s\u3000]+/g,"");
-
-  // 去常见标点/符号
   t = t.replace(/[·•、,，.。:：;；!！?？"'“”‘’\-—_~`@#$%^&*+=<>\\/|]/g,"");
-
-  // 小写化
   t = t.toLowerCase();
-
-  // 去常见后缀（末尾）
   t = t.replace(/(小组|团队|战队|家族|群|组|club)$/i,"");
-
   return t;
 }
 function samePerson(a,b){
@@ -199,6 +187,123 @@ function parseLeaders(text){
 }
 function groupHasLeader(group, leaderName){
   return group.items.some(it => samePerson(it.id, leaderName));
+}
+
+/* ===================== 固定“金额分满组”机制（只固定 sum==target） ===================== */
+function itemKey(it){
+  // 默认不使用序号，抗复制重排；如你经常“同人同金额重复”，可改成 `${it.no}|${normName(it.id)}|${it.amount}`
+  return `${normName(it.id)}|${it.amount}`;
+}
+function isFullGroup(g){
+  const t = +g.target || 0;
+  return t > 0 && (+g.sum === t);
+}
+
+const FIXED_KEY = "wx_jielong_fixed_full_v2";
+
+function loadFixed(){
+  try{
+    const s = localStorage.getItem(FIXED_KEY);
+    return s ? JSON.parse(s) : null;
+  }catch(e){
+    return null;
+  }
+}
+function storeFixed(data){
+  try{
+    localStorage.setItem(FIXED_KEY, JSON.stringify(data));
+  }catch(e){}
+}
+function clearFixed(){
+  localStorage.removeItem(FIXED_KEY);
+  const notice = document.getElementById("notice");
+  if(notice) notice.textContent = "已清除固定记录。";
+}
+
+/* 从固定记录里重建 fixedGroups：
+   - 必须 “完全命中” 且 “sum==target” 才算固定
+   - 否则不固定、不扣条目（回到普通条目，后续可补可重分）
+*/
+function applyFixedFullGroups(items){
+  const data = loadFixed();
+  if(!data || !Array.isArray(data.groups) || !data.groups.length){
+    return { fixedGroups: [], remaining: items, msg: "" };
+  }
+
+  const pool = [...items];
+  const map = new Map();
+  pool.forEach((it, idx) => {
+    const k = itemKey(it);
+    if(!map.has(k)) map.set(k, []);
+    map.get(k).push(idx);
+  });
+
+  const usedIdx = new Set();
+  const fixedGroups = [];
+  let failedGroups = 0;
+
+  for(const g of data.groups){
+    const pickedIdx = [];
+    const got = [];
+    let missing = 0;
+
+    for(const k of (g.keys||[])){
+      const list = map.get(k);
+      if(list && list.length){
+        while(list.length && usedIdx.has(list[0])) list.shift();
+        if(list.length){
+          const idx = list.shift();
+          pickedIdx.push(idx);
+          got.push(pool[idx]);
+        }else{
+          missing++;
+        }
+      }else{
+        missing++;
+      }
+    }
+
+    got.sort((a,b)=>a.no-b.no);
+    const sum = got.reduce((s,x)=>s+x.amount,0);
+    const target = +g.target || 0;
+
+    const okToFix = (missing === 0) && (target > 0) && (sum === target);
+    if(okToFix){
+      pickedIdx.forEach(idx => usedIdx.add(idx));
+      fixedGroups.push({
+        stage: g.stage || "FIXED",
+        leader: g.leader || null,
+        target,
+        sum,
+        items: got,
+        fixed: true
+      });
+    }else{
+      failedGroups++;
+    }
+  }
+
+  const remaining = pool.filter((_, idx)=>!usedIdx.has(idx));
+
+  const msg = `已读取固定记录：本次成功固定 ${fixedGroups.length} 组（仅金额分满）；可用于补充/新分条目 ${remaining.length} 条。${
+    failedGroups ? `（有 ${failedGroups} 组因“缺行/改金额/未分满”未被固定）` : ""
+  }`;
+
+  return { fixedGroups, remaining, msg };
+}
+
+function updateFixedFromGroups(allGroups){
+  const fixed = allGroups.filter(isFullGroup);
+  const payload = {
+    groups: fixed.map(g => ({
+      stage: g.stage,
+      leader: g.leader || null,
+      target: +g.target || 0,
+      keys: (g.items||[]).map(itemKey),
+    })),
+    savedAt: Date.now()
+  };
+  storeFixed(payload);
 }
 
 /* ===================== 单组：顺序优先 + 组合补齐 ===================== */
@@ -233,11 +338,10 @@ function makeStageA(items, aTarget, maxK, nLimit){
   const limit = (Number.isFinite(nLimit) && nLimit>0) ? Math.floor(nLimit) : Infinity;
 
   while(arr.length && groupsA.length < limit){
-    const snap = arr.slice();          // 用于回滚
+    const snap = arr.slice();
     const r = takeOneGroup(arr, aTarget, maxK);
 
     if(r.group.sum !== aTarget){
-      // 回滚并停止
       arr.length = 0;
       snap.forEach(x=>arr.push(x));
       break;
@@ -272,15 +376,73 @@ function makeAllByA(items, aTarget, maxK, nLimit){
   return groups;
 }
 
-/* ===================== 组长分配：按组顺序找“顺位第一个不在组里”的组长 ===================== */
+/* ===================== 补未满组：只要补到 sum==target 就固定 ===================== */
+function fillOpenGroups(openGroups, feedItems, maxK){
+  const arr = [...feedItems];
+  const out = [];
+
+  for(const g of openGroups){
+    const target = +g.target || 0;
+    let sum = +g.sum || 0;
+    const items = [...(g.items||[])];
+
+    if(!(target > 0)){
+      out.push({ ...g, items, sum, fixed:false });
+      continue;
+    }
+
+    while(arr.length && sum + arr[0].amount <= target){
+      items.push(arr.shift());
+      sum += items[items.length-1].amount;
+    }
+
+    if(sum < target){
+      const need = target - sum;
+      for(let k=1;k<=maxK;k++){
+        const idxs = findCombo(arr, need, k);
+        if(idxs){
+          idxs.sort((a,b)=>b-a).forEach(i => items.push(arr.splice(i,1)[0]));
+          sum = target;
+          break;
+        }
+      }
+    }
+
+    items.sort((a,b)=>a.no-b.no);
+    const fixed = (target > 0 && sum === target);
+
+    out.push({ ...g, items, sum, fixed });
+  }
+
+  return { groups: out, remaining: arr };
+}
+
+/* ===================== 组长分配：不重复（把已有leader先计入used） ===================== */
 function assignLeaders(groups, leaders){
   if(!leaders.length) return groups;
 
-  let li = 0;
   const used = new Set();
 
+  // 1) 先把“已经有的组长”加入 used，避免后面重复使用
+  for(const g of groups){
+    if(!g.leader) continue;
+    for(let i=0;i<leaders.length;i++){
+      if(samePerson(g.leader, leaders[i])){
+        used.add(i);
+        break;
+      }
+    }
+  }
+
+  // 2) li 指向“从前往后第一个未用过的组长”
+  let li = 0;
+  while(li < leaders.length && used.has(li)) li++;
+
+  // 3) 给没有 leader 的组分配组长（严格不重复：用完就留空）
   for(let gi=0; gi<groups.length; gi++){
     const g = groups[gi];
+    if(g.leader) continue;
+
     let found = -1;
 
     for(let t=li; t<leaders.length; t++){
@@ -304,6 +466,7 @@ function assignLeaders(groups, leaders){
       g.leader = null;
     }
   }
+
   return groups;
 }
 
@@ -317,20 +480,25 @@ function escapeHtml(s){
     .replaceAll("'","&#39;");
 }
 
-function render(groups, showSeq, aTarget, bTarget){
+function render(groups, showSeq){
   const el = document.getElementById("groups");
   let html = '<div class="groups">';
 
   groups.forEach((g,i)=>{
-    const isA = (g.stage==="A" || g.stage==="A_LAST");
-    const target = isA ? aTarget : bTarget;
-    const stageText = (g.stage==="A") ? `阶段A：目标 ${aTarget}`
-                    : (g.stage==="B") ? `阶段B：目标 ${bTarget}`
-                    : `按A继续拆分`;
+    const target = +g.target || 0;
+
+    const stageText =
+      (g.stage==="A") ? `阶段A：目标 ${target}` :
+      (g.stage==="B") ? `阶段B：目标 ${target}` :
+      (g.stage==="A_LAST") ? `按A继续拆分：目标 ${target}` :
+      `固定满组：目标 ${target}`;
 
     const stageBadge = `<span class="badge gray">${stageText}</span>`;
     const leaderBadge = g.leader ? `<span class="badge">组长：${escapeHtml(g.leader)}</span>` : ``;
-    const sumClass = (target && g.sum===target) ? "ok" : "warn";
+
+    const full = (target>0 && g.sum===target);
+    const sumClass = full ? "ok" : (target ? "warn" : "");
+    const fixedBadge = full ? `<span class="badge">已固定（分满）</span>` : `<span class="badge gray">未满可补</span>`;
 
     html += `
       <div class="gcard">
@@ -338,9 +506,10 @@ function render(groups, showSeq, aTarget, bTarget){
           <div class="left">
             <strong>第 ${i+1} 组</strong>
             ${stageBadge}
+            ${fixedBadge}
             ${leaderBadge}
           </div>
-          <span class="${sumClass}">合计 ${g.sum}</span>
+          <span class="${sumClass}">合计 ${g.sum}${target?` / 目标 ${target}`:""}</span>
         </div>
         <table>
           <tr>
@@ -363,6 +532,32 @@ function render(groups, showSeq, aTarget, bTarget){
   el.innerHTML = html;
 }
 
+function renderUnassigned(items, showSeq){
+  const el = document.getElementById("unassigned");
+  if(!el) return;
+
+  if(!items.length){
+    el.innerHTML = '<div style="color:#2e8b57;">无</div>';
+    return;
+  }
+
+  el.innerHTML = `
+    <table>
+      <tr>
+        ${showSeq?'<th class="seq">序号</th>':''}
+        <th>ID</th>
+        <th class="money">金额</th>
+      </tr>
+      ${items.map(it=>`
+        <tr>
+          ${showSeq?`<td class="seq">${it.no}</td>`:''}
+          <td>${escapeHtml(it.id)}</td>
+          <td class="money">${it.amount}</td>
+        </tr>`).join("")}
+    </table>
+  `;
+}
+
 /* ===================== 主流程 ===================== */
 function run(){
   const raw = document.getElementById("raw").value;
@@ -371,9 +566,12 @@ function run(){
   const notice = document.getElementById("notice");
   notice.textContent = "";
 
+  const showSeq = document.getElementById("showSeq").checked;
+
   if(!items.length){
     document.getElementById("groups").innerHTML =
       '<div style="color:#c0392b;">没有识别到有效数据：请确保每行末尾有金额数字（例如 “张三 100”）。</div>';
+    renderUnassigned([], showSeq);
     return;
   }
 
@@ -385,32 +583,101 @@ function run(){
   const nGroups = nText ? (+nText) : NaN;
 
   const maxK = Math.max(1, +document.getElementById("maxK").value || 6);
-  const showSeq = document.getElementById("showSeq").checked;
 
-  // 提醒：若存在单笔 > 目标
+  const fixedFullOnly = document.getElementById("fixedFullOnly").checked;
+
+  // 单笔过大提醒
   const maxAmt = Math.max(...items.map(x=>x.amount));
   if(maxAmt > aTarget){
     notice.textContent = `注意：存在单笔金额 ${maxAmt} 大于 A=${aTarget}，这种条目无法放入“凑满A”的逻辑里，会影响A阶段可凑满组数。`;
   }
 
-  let groups = [];
-  if(!bTarget){
-    // B 为空：全按 A 分（A 阶段必须满；剩余继续按 A 拆分，且每组 <= A）
-    groups = makeAllByA(items, aTarget, maxK, nGroups);
-  }else{
-    const stageA = makeStageA(items, aTarget, maxK, nGroups);
-    const groupsA = stageA.groupsA;
-    const groupsB = stageA.remaining.length ? splitByTarget(stageA.remaining, bTarget, maxK, "B") : [];
-    groups = [...groupsA, ...groupsB];
+  // 1) 应用固定满组（仅 sum==target 才固定）
+  let fixedGroups = [];
+  let remainingItems = items;
+
+  if(fixedFullOnly){
+    const fixedRes = applyFixedFullGroups(items);
+    fixedGroups = fixedRes.fixedGroups;
+    remainingItems = fixedRes.remaining;
+    notice.textContent = notice.textContent ? (notice.textContent + " " + fixedRes.msg) : fixedRes.msg;
   }
 
-  // 组长分配
+  // 2) 基于 remainingItems 按原规则跑一遍
+  let computed = [];
+  if(!bTarget){
+    computed = makeAllByA(remainingItems, aTarget, maxK, nGroups).map(g => ({
+      ...g,
+      stage: g.stage || "A_LAST",
+      target: aTarget,
+      fixed: (aTarget>0 && g.sum===aTarget)
+    }));
+  }else{
+    const stageA = makeStageA(remainingItems, aTarget, maxK, nGroups);
+    const groupsA = stageA.groupsA.map(g => ({...g, target:aTarget, fixed:(aTarget>0 && g.sum===aTarget)}));
+    const groupsB = stageA.remaining.length
+      ? splitByTarget(stageA.remaining, bTarget, maxK, "B").map(g => ({...g, target:bTarget, fixed:(bTarget>0 && g.sum===bTarget)}))
+      : [];
+    computed = [...groupsA, ...groupsB];
+  }
+
+  // 3) 找出未被 computed 使用的条目作为 feed，用于补未满组
+  const usedKeys = new Set();
+  computed.forEach(g => (g.items||[]).forEach(it => usedKeys.add(itemKey(it))));
+  const feed = remainingItems.filter(it => !usedKeys.has(itemKey(it)));
+
+  const openGroups = computed.filter(g => !isFullGroup(g)).map(g => ({...g, fixed:false}));
+  const fullGroups = computed.filter(isFullGroup).map(g => ({...g, fixed:true}));
+
+  // 4) 先补未满组，补满即固定
+  const filledRes = fillOpenGroups(openGroups, feed, maxK);
+  const filledOpen = filledRes.groups;
+  const afterFillRemaining = filledRes.remaining;
+
+  // 5) 对补完后剩余继续分新组（允许不满）
+  let tailGroups = [];
+  if(!bTarget){
+    tailGroups = splitByTarget(afterFillRemaining, aTarget, maxK, "A_LAST").map(g => ({
+      ...g,
+      target: aTarget,
+      fixed: (aTarget>0 && g.sum===aTarget)
+    }));
+  }else{
+    tailGroups = afterFillRemaining.length
+      ? splitByTarget(afterFillRemaining, bTarget, maxK, "B").map(g => ({
+          ...g,
+          target: bTarget,
+          fixed: (bTarget>0 && g.sum===bTarget)
+        }))
+      : [];
+  }
+
+  // 6) 合并：历史固定满组 -> 本轮已满组 -> 已补的未满组 -> 新尾部组
+  let groups = [
+    ...fixedGroups.map(g => ({...g, fixed:true})),
+    ...fullGroups.map(g => ({...g, fixed:true})),
+    ...filledOpen,
+    ...tailGroups
+  ];
+
+  // 7) 组长分配（不重复，且不改已有 leader）
   const leaders = parseLeaders(document.getElementById("leaders").value);
   if(leaders.length){
     groups = assignLeaders(groups, leaders);
   }
 
-  render(groups, showSeq, aTarget, bTarget || 0);
+  // 8) 自动更新固定记录：只写入“金额分满组”
+  if(fixedFullOnly){
+    updateFixedFromGroups(groups);
+  }
+
+  // 9) 未分配：remainingItems 中没进入任何组的条目
+  const allAssigned = new Set();
+  groups.forEach(g => (g.items||[]).forEach(it => allAssigned.add(itemKey(it))));
+  const unassigned = remainingItems.filter(it => !allAssigned.has(itemKey(it)));
+
+  render(groups, showSeq);
+  renderUnassigned(unassigned, showSeq);
 }
 
 function clearAll(){
@@ -420,6 +687,7 @@ function clearAll(){
   document.getElementById("bTarget").value="";
   document.getElementById("groups").innerHTML="";
   document.getElementById("notice").textContent="";
+  renderUnassigned([], document.getElementById("showSeq").checked);
 }
 </script>
 </body>
